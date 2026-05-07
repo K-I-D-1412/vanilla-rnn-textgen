@@ -122,6 +122,42 @@ def forward_pass(RNN, X, Y, h0):
     return loss, cache, h_last
 
 
+def synthesize(RNN, h0, x0, n, rng=None):
+    # Synthesize a sequence of characters from the RNN.
+    if rng is None:
+        rng = np.random.default_rng()
+
+    U = RNN["U"]
+    W = RNN["W"]
+    V = RNN["V"]
+    b = RNN["b"]
+    c = RNN["c"]
+
+    K = x0.shape[0]
+
+    h = h0.copy()
+    x = x0.copy()
+
+    Y = np.zeros((K, n))
+
+    for t in range(n):
+        a = W @ h + U @ x + b
+        h = np.tanh(a)
+        o = V @ h + c
+        p = softmax(o)
+
+        cp = np.cumsum(p, axis=0)
+        a_random = rng.uniform()
+        sampled_index = np.argmax(cp - a_random > 0)
+
+        x = np.zeros((K, 1))
+        x[sampled_index, 0] = 1
+
+        Y[sampled_index, t] = 1
+
+    return Y
+
+
 if __name__ == "__main__":
     book_path = "data/goblet_book.txt"
 
@@ -186,3 +222,14 @@ if __name__ == "__main__":
     assert len(cache["p"]) == 25
 
     print("Forward pass test passed.")
+
+    rng = np.random.default_rng(42)
+    x0 = X[:, 0:1]
+    Y_synth = synthesize(RNN, h0, x0, n=200, rng=rng)
+    generated_text = one_hot_to_chars(Y_synth, ind_to_char)
+
+    print("\nSynthesized text from randomly initialized RNN:")
+    print(generated_text)
+
+    assert Y_synth.shape == (K, 200)
+    print("Text synthesis test passed.")
