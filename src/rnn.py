@@ -212,6 +212,53 @@ def backward_pass(RNN, cache):
     return grads
 
 
+def initialize_adam_state(RNN):
+    # Initialize Adam optimizer state for all RNN parameters.
+    adam_state = {
+        "m": {},
+        "v": {},
+        "t": 0,
+    }
+
+    for key in RNN:
+        adam_state["m"][key] = np.zeros_like(RNN[key])
+        adam_state["v"][key] = np.zeros_like(RNN[key])
+
+    return adam_state
+
+
+def adam_update(
+    RNN,
+    grads,
+    adam_state,
+    eta=0.001,
+    beta1=0.9,
+    beta2=0.999,
+    epsilon=1e-8,
+):
+    # Update RNN parameters using Adam.
+    adam_state["t"] += 1
+    t = adam_state["t"]
+
+    for key in RNN:
+        adam_state["m"][key] = (
+            beta1 * adam_state["m"][key]
+            + (1 - beta1) * grads[key]
+        )
+
+        adam_state["v"][key] = (
+            beta2 * adam_state["v"][key]
+            + (1 - beta2) * (grads[key] ** 2)
+        )
+
+        m_hat = adam_state["m"][key] / (1 - beta1 ** t)
+        v_hat = adam_state["v"][key] / (1 - beta2 ** t)
+
+        RNN[key] = RNN[key] - eta * m_hat / (np.sqrt(v_hat) + epsilon)
+
+    return RNN, adam_state
+
+
 if __name__ == "__main__":
     book_path = "data/goblet_book.txt"
 
@@ -301,3 +348,23 @@ if __name__ == "__main__":
     assert grads["c"].shape == RNN["c"].shape
 
     print("Backward pass shape test passed.")
+
+    adam_state = initialize_adam_state(RNN)
+
+    old_U = RNN["U"].copy()
+
+    RNN, adam_state = adam_update(
+        RNN,
+        grads,
+        adam_state,
+        eta=0.001,
+    )
+
+    print("\nAdam update test:")
+    print("Adam step:", adam_state["t"])
+    print("Max change in U:", np.max(np.abs(RNN["U"] - old_U)))
+
+    assert adam_state["t"] == 1
+    assert np.max(np.abs(RNN["U"] - old_U)) > 0
+
+    print("Adam update test passed.")
