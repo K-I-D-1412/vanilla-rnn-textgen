@@ -158,6 +158,60 @@ def synthesize(RNN, h0, x0, n, rng=None):
     return Y
 
 
+def backward_pass(RNN, cache):
+    # Run the backward pass of the vanilla RNN using BPTT.
+    U = RNN["U"]
+    W = RNN["W"]
+    V = RNN["V"]
+
+    X = cache["X"]
+    Y = cache["Y"]
+    h = cache["h"]
+    p = cache["p"]
+
+    seq_length = X.shape[1]
+
+    grads = {}
+    grads["U"] = np.zeros_like(RNN["U"])
+    grads["W"] = np.zeros_like(RNN["W"])
+    grads["V"] = np.zeros_like(RNN["V"])
+    grads["b"] = np.zeros_like(RNN["b"])
+    grads["c"] = np.zeros_like(RNN["c"])
+
+    # Gradient flowing from the future hidden state.
+    dh_next = np.zeros_like(h[0])
+
+    for t in reversed(range(seq_length)):
+        x_t = X[:, t:t + 1]
+        y_t = Y[:, t:t + 1]
+        h_t = h[t + 1]
+        h_prev = h[t]
+
+        # Since loss is averaged over seq_length in forward_pass,
+        # the output gradient should also be divided by seq_length.
+        do = (p[t] - y_t) / seq_length
+
+        grads["V"] += do @ h_t.T
+        grads["c"] += do
+
+        dh = V.T @ do + dh_next
+
+        # h_t = tanh(a_t), so derivative is 1 - h_t^2.
+        da = dh * (1 - h_t ** 2)
+
+        grads["W"] += da @ h_prev.T
+        grads["U"] += da @ x_t.T
+        grads["b"] += da
+
+        dh_next = W.T @ da
+
+    # Gradient clipping to avoid exploding gradients.
+    for key in grads:
+        grads[key] = np.clip(grads[key], -5, 5)
+
+    return grads
+
+
 if __name__ == "__main__":
     book_path = "data/goblet_book.txt"
 
@@ -233,3 +287,17 @@ if __name__ == "__main__":
 
     assert Y_synth.shape == (K, 200)
     print("Text synthesis test passed.")
+
+    grads = backward_pass(RNN, cache)
+
+    print("\nBackward pass test:")
+    for key in ["U", "W", "V", "b", "c"]:
+        print(key, grads[key].shape, "max abs grad:", np.max(np.abs(grads[key])))
+
+    assert grads["U"].shape == RNN["U"].shape
+    assert grads["W"].shape == RNN["W"].shape
+    assert grads["V"].shape == RNN["V"].shape
+    assert grads["b"].shape == RNN["b"].shape
+    assert grads["c"].shape == RNN["c"].shape
+
+    print("Backward pass shape test passed.")
