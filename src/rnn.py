@@ -64,6 +64,64 @@ def initialize_rnn_parameters(K, m=100, seed=42):
     return RNN
 
 
+def softmax(o):
+    exp_o = np.exp(o - np.max(o))
+    p = exp_o / np.sum(exp_o)
+
+    return p
+
+
+def forward_pass(RNN, X, Y, h0):
+    # Run the forward pass of the vanilla RNN.
+    
+    U = RNN["U"]
+    W = RNN["W"]
+    V = RNN["V"]
+    b = RNN["b"]
+    c = RNN["c"]
+
+    seq_length = X.shape[1]
+
+    a_list = []
+    h_list = [h0]
+    o_list = []
+    p_list = []
+
+    loss = 0.0
+
+    for t in range(seq_length):
+        x_t = X[:, t:t + 1]
+        y_t = Y[:, t:t + 1]
+
+        a_t = W @ h_list[-1] + U @ x_t + b
+        h_t = np.tanh(a_t)
+        o_t = V @ h_t + c
+        p_t = softmax(o_t)
+
+        loss += -np.log(np.sum(y_t * p_t) + 1e-12)
+
+        a_list.append(a_t)
+        h_list.append(h_t)
+        o_list.append(o_t)
+        p_list.append(p_t)
+
+    loss = loss / seq_length
+
+    cache = {
+        "X": X,
+        "Y": Y,
+        "a": a_list,
+        "h": h_list,
+        "o": o_list,
+        "p": p_list,
+        "h0": h0,
+    }
+
+    h_last = h_list[-1]
+
+    return loss, cache, h_last
+
+
 if __name__ == "__main__":
     book_path = "data/goblet_book.txt"
 
@@ -103,3 +161,28 @@ if __name__ == "__main__":
     assert RNN["c"].shape == (K, 1)
 
     print("RNN parameter initialization test passed.")
+
+    X_chars = book_data[:25]
+    Y_chars = book_data[1:26]
+
+    X = chars_to_one_hot(X_chars, char_to_ind, K)
+    Y = chars_to_one_hot(Y_chars, char_to_ind, K)
+
+    h0 = np.zeros((100, 1))
+
+    loss, cache, h_last = forward_pass(RNN, X, Y, h0)
+
+    print("\nForward pass test:")
+    print("X shape:", X.shape)
+    print("Y shape:", Y.shape)
+    print("Initial hidden state shape:", h0.shape)
+    print("Final hidden state shape:", h_last.shape)
+    print("Loss:", loss)
+
+    assert h_last.shape == (100, 1)
+    assert len(cache["a"]) == 25
+    assert len(cache["h"]) == 26
+    assert len(cache["o"]) == 25
+    assert len(cache["p"]) == 25
+
+    print("Forward pass test passed.")
