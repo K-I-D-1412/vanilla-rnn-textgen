@@ -21,10 +21,11 @@ def train(
     hidden_size=100,
     seq_length=25,
     eta=0.001,
-    num_updates=10000,
+    num_updates=100000,
     print_every=100,
-    synth_every=1000,
+    synth_every=10000,
     synth_length=200,
+    final_synth_length=1000,
     seed=42,
 ):
     os.makedirs("results", exist_ok=True)
@@ -55,6 +56,27 @@ def train(
     print("Sequence length:", seq_length)
     print("Learning rate:", eta)
     print("Number of updates:", num_updates)
+    print()
+
+    # Synthesize text before training.
+    x0_char = book_data[0]
+    x0 = chars_to_one_hot(x0_char, char_to_ind, K)
+
+    Y_synth_0 = synthesize(
+        RNN,
+        hprev,
+        x0,
+        n=synth_length,
+        rng=rng,
+    )
+    generated_text_0 = one_hot_to_chars(Y_synth_0, ind_to_char)
+
+    sample_path_0 = "results/sample_update_000000.txt"
+    with open(sample_path_0, "w", encoding="utf-8") as f:
+        f.write(generated_text_0)
+
+    print("Sample before training:")
+    print(generated_text_0)
     print()
 
     for update_step in range(1, num_updates + 1):
@@ -120,6 +142,21 @@ def train(
             b=best_RNN["b"],
             c=best_RNN["c"],
         )
+
+        h0_best = np.zeros((hidden_size, 1))
+        x0_best = chars_to_one_hot(book_data[0], char_to_ind, K)
+
+        Y_best = synthesize(
+            best_RNN,
+            h0_best,
+            x0_best,
+            n=final_synth_length,
+            rng=rng,
+        )
+        best_text = one_hot_to_chars(Y_best, ind_to_char)
+
+        with open("results/best_model_sample_1000.txt", "w", encoding="utf-8") as f:
+            f.write(best_text)
 
     print("Training finished.")
     print("Best smooth loss:", best_smooth_loss)
