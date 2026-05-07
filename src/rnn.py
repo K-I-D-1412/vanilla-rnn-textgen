@@ -47,6 +47,23 @@ def one_hot_to_chars(X, ind_to_char):
     return "".join(chars)
 
 
+def initialize_rnn_parameters(K, m=100, seed=42):
+    # Initialize the parameters of a vanilla RNN.
+    # Return a dictionary containing RNN parameters U, W, V, b, c.
+    rng = np.random.default_rng(seed)
+
+    RNN = {}
+
+    RNN["b"] = np.zeros((m, 1))
+    RNN["c"] = np.zeros((K, 1))
+
+    RNN["U"] = (1 / np.sqrt(2 * K)) * rng.standard_normal(size=(m, K))
+    RNN["W"] = (1 / np.sqrt(2 * m)) * rng.standard_normal(size=(m, m))
+    RNN["V"] = (1 / np.sqrt(m)) * rng.standard_normal(size=(K, m))
+
+    return RNN
+
+
 if __name__ == "__main__":
     book_path = "data/goblet_book.txt"
 
@@ -72,3 +89,17 @@ if __name__ == "__main__":
 
     assert test_chars == recovered_chars
     print("Data preprocessing test passed.")
+
+    RNN = initialize_rnn_parameters(K, m=100, seed=42)
+
+    print("\nRNN parameter shapes:")
+    for key in ["U", "W", "V", "b", "c"]:
+        print(key, RNN[key].shape)
+
+    assert RNN["U"].shape == (100, K)
+    assert RNN["W"].shape == (100, 100)
+    assert RNN["V"].shape == (K, 100)
+    assert RNN["b"].shape == (100, 1)
+    assert RNN["c"].shape == (K, 1)
+
+    print("RNN parameter initialization test passed.")
