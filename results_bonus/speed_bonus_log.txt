@@ -1,0 +1,18 @@
+Correctness check
+-----------------
+Original loss: 4.436350806431
+Fast loss:     4.436350806431
+Loss abs diff: 0.000000000000e+00
+
+U: max abs diff = 0.000000000000e+00, relative error = 0.000000000000e+00
+W: max abs diff = 0.000000000000e+00, relative error = 0.000000000000e+00
+V: max abs diff = 0.000000000000e+00, relative error = 0.000000000000e+00
+b: max abs diff = 0.000000000000e+00, relative error = 0.000000000000e+00
+c: max abs diff = 0.000000000000e+00, relative error = 0.000000000000e+00
+
+Speed benchmark
+---------------
+Number of repeats: 2000
+Original total time: 38.088104 seconds
+Fast total time:     10.896692 seconds
+Speedup:             3.50x
