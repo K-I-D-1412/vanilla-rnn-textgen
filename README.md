@@ -46,8 +46,12 @@ vanilla-rnn-textgen/
 │   ├── rnn.py
 │   ├── train.py
 │   ├── gradient_check.py
-│   ├── sampling.py
-│   └── plot_loss.py
+│   ├── plot_loss.py
+│   ├── rnn_bonus.py
+│   ├── train_bonus.py
+│   ├── bonus_sampling.py
+│   ├── plot_bonus_random_loss.py
+│   └── speed_bonus.py
 ├── figures/
 │   └── smooth_loss_100000.png
 ├── results/
@@ -58,12 +62,19 @@ vanilla-rnn-textgen/
 │   ├── sample_update_010000.txt
 │   ├── ...
 │   └── train_100000_log.txt
+├── results_bonus/
+│   ├── bonus_sampling_log.txt
+│   ├── speed_bonus_log.txt
+│   ├── random_loss_history.npy
+│   ├── random_best_rnn.npz
+│   ├── random_best_model_sample_1000.txt
+│   └── ...
 ├── report/
 ├── README.md
 └── .gitignore
 ```
 
-Some generated files in `results/` may not be included in the GitHub repository depending on the `.gitignore` settings.
+Some generated files in `results/` and `results_bonus/` may not be included in the GitHub repository depending on the `.gitignore` settings.
 
 ## Main Components
 
@@ -195,7 +206,7 @@ This saves the smooth loss plot to:
 DD2424 Assignment 4 Report/smooth_loss_100000.png
 ```
 
-## Results
+## Main Results
 
 The smooth loss decreased rapidly during the early phase of training and continued to improve more gradually afterwards.
 
@@ -219,6 +230,141 @@ Thouch they longide,
 ```
 
 The generated passages are not fully coherent, but they demonstrate that the vanilla RNN learned meaningful character-level patterns from the training text.
+
+## Bonus Experiments
+
+I also implemented several bonus experiments in independent bonus files so that the original main assignment code remains unchanged.
+
+### Bonus 1: Random sequence training order
+
+Implemented in:
+
+```text
+src/train_bonus.py
+src/plot_bonus_random_loss.py
+```
+
+In the main training loop, the RNN scans through the book sequentially and passes the final hidden state from one segment to the next. In the random sequence bonus experiment, each update step samples a random position from the book:
+
+```text
+X = book_data[e:e+seq_length]
+Y = book_data[e+1:e+seq_length+1]
+```
+
+Since consecutive sampled sequences are not necessarily adjacent in the original text, the hidden state is reset to zero at every update step.
+
+The random-sequence experiment was also run for 100,000 update steps.
+![Sequential vs random sequence training](figures/sequential_vs_random_loss.png)
+Results:
+
+```text
+Sequential training final smooth loss: 1.6513
+Sequential training best smooth loss:  1.5174
+
+Random-sequence final smooth loss:     1.7213
+Random-sequence best smooth loss:      1.7053
+```
+
+The sequential training strategy performed better, which suggests that preserving the natural order of the text and carrying the hidden state across consecutive segments is beneficial for this vanilla RNN.
+
+### Bonus 2: Sampling strategies
+
+Implemented in:
+
+```text
+src/bonus_sampling.py
+```
+
+This experiment uses the best trained RNN model and changes only the text synthesis strategy. I implemented:
+
+```text
+Temperature sampling
+Nucleus sampling
+Combined temperature + nucleus sampling
+```
+
+Temperature sampling modifies the sharpness of the probability distribution:
+
+```text
+p = softmax(o / T)
+```
+
+Nucleus sampling keeps only the smallest set of characters whose cumulative probability exceeds a threshold `theta`, then renormalizes the remaining probabilities before sampling.
+
+The tested settings were:
+
+```text
+Temperature:
+T = 0.5, 1.0, 1.5
+
+Nucleus:
+theta = 0.5, 0.8, 0.95
+
+Combined:
+conservative: T = 0.7, theta = 0.8
+balanced:     T = 1.0, theta = 0.9
+creative:     T = 1.3, theta = 0.95
+```
+
+Qualitatively, low-temperature and low-threshold settings produced more stable but repetitive text. High-temperature and high-threshold settings produced more diverse but noisier text. Among the combined settings, `T = 1.0` and `theta = 0.9` gave the best balance between diversity and readability.
+
+### Bonus 3: Speeding up gradient computations
+
+Implemented in:
+
+```text
+src/speed_bonus.py
+```
+
+This experiment optimizes the forward and backward computations by exploiting the one-hot structure of the input characters.
+
+In the original implementation, the input-to-hidden computation is:
+
+```text
+U @ x_t
+```
+
+Since `x_t` is one-hot, this multiplication simply selects one column of `U`. The optimized implementation replaces it with direct column indexing:
+
+```text
+U[:, i_t]
+```
+
+Similarly, in the backward pass, only the active column of `grad_U` is updated. The optimized implementation also uses `np.outer` for the outer-product gradient computations of `W` and `V`.
+
+Correctness check:
+
+```text
+Original loss: 4.436350806431
+Fast loss:     4.436350806431
+Loss abs diff: 0.000000000000e+00
+
+Gradient differences for U, W, V, b, c:
+max absolute difference = 0
+relative error = 0
+```
+
+Speed benchmark with 2000 repeats:
+
+```text
+Original total time: 38.088104 seconds
+Fast total time:     10.896692 seconds
+Speedup:             3.50x
+```
+
+The optimized implementation is mathematically equivalent to the original version and achieves approximately a 3.5x speedup.
+
+## Bonus Summary
+
+The bonus experiments explored three different aspects of the character-level RNN.
+
+First, the sampling experiments showed that generation quality depends strongly on how the next character is sampled from the probability distribution. Conservative sampling settings improve stability but can cause repetition, while more creative settings improve diversity but increase noise.
+
+Second, the random sequence training experiment showed that randomizing the sequence order did not improve this vanilla RNN. Sequential training achieved a lower smooth loss, likely because it preserves hidden-state continuity across consecutive text segments.
+
+Third, the speed optimization experiment showed that exploiting one-hot input structure can significantly reduce computation time without changing the mathematical result.
+
+Together, these experiments provide additional insight into generation quality, training dynamics, and computational efficiency for character-level RNNs.
 
 ## Notes
 
